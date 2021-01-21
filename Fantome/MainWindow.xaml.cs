@@ -56,7 +56,7 @@ namespace Fantome
             message += ((Exception)e.ExceptionObject).GetType() + ": ";
             message += ((Exception)e.ExceptionObject).Message + '\n';
 
-            Log.Fatal(((Exception)e.ExceptionObject).ToString());
+            Log.Fatal((Exception)e.ExceptionObject, "");
             MessageBox.Show(message, "Fantome - Fatal Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
 
@@ -121,7 +121,7 @@ namespace Fantome
         }
         private void OnClosing(object sender, CancelEventArgs e)
         {
-            this.ViewModel.TrayIcon.Dispose();
+            this.ViewModel?.TrayIcon.Dispose();
         }
         private async void OnDrop(object sender, System.Windows.DragEventArgs e)
         {
@@ -131,7 +131,7 @@ namespace Fantome
                 string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
                 for (int i = 0; i < files.Length; i++)
                 {
-                    if (Path.GetExtension(files[i]) == ".zip")
+                    if (Path.GetExtension(files[i]) == ".zip" || Path.GetExtension(files[i]) == ".fantome")
                     {
                         await this.ViewModel.AddMod(files[i]);
                     }

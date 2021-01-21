@@ -12,12 +12,14 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Input;
+using Newtonsoft.Json;
 
 namespace Fantome.MVVM.ViewModels
 {
@@ -125,7 +127,7 @@ namespace Fantome.MVVM.ViewModels
                 System.Windows.Application.Current.Shutdown();
             }));
 
-            //Create Icon 
+            //Create Icon
             this.TrayIcon = new NotifyIcon()
             {
                 Visible = false,
@@ -151,7 +153,7 @@ namespace Fantome.MVVM.ViewModels
                 Multiselect = false
             };
 
-            dialog.Filters.Add(new CommonFileDialogFilter("ZIP Files", "*.zip"));
+            dialog.Filters.Add(new CommonFileDialogFilter("Fantome mod Files", "*.fantome;*.zip"));
 
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
@@ -161,31 +163,42 @@ namespace Fantome.MVVM.ViewModels
         public async Task AddMod(string modOriginalPath)
         {
             string modPath = "";
+            string currentModInfo;
 
             try
             {
                 using (ModFile originalMod = new ModFile(modOriginalPath))
                 {
-                    modPath = string.Format(@"{0}\{1}.zip", ModManager.MOD_FOLDER, originalMod.GetID());
+                    modPath = string.Format(@"{0}\{1}.fantome", ModManager.MOD_FOLDER, originalMod.GetID());
+                    currentModInfo = JsonConvert.SerializeObject(originalMod.Info);
                 }
             }
             catch (Exception exception)
             {
-                Log.Error($"Failed to copy mod from: {modOriginalPath} to {modPath}\n{exception}");
-                await DialogHelper.ShowMessageDialog($"Failed to copy mod from: {modOriginalPath} to {modPath}\n{exception.Message}");
+                Log.Error(exception, "Failed to read mod file: \"{ModOriginalPath}\"", modOriginalPath);
+                await DialogHelper.ShowMessageDialog($"Failed to read mod file: \"{modOriginalPath}\"\n\n{exception.Message}");
+                return;
             }
-
 
             //If mod is not in Mods folder then we copy it
             if (!File.Exists(modPath))
             {
                 Log.Information("Copying Mod: {0} to {1}", modOriginalPath, modPath);
 
-                try { File.Copy(modOriginalPath, modPath, true); }
+                try
+                {
+                    File.Copy(modOriginalPath, modPath, true);
+                    using ZipArchive modZip = ZipFile.Open(modPath, ZipArchiveMode.Update);
+                    ZipArchiveEntry infoJsonEntry = modZip.GetEntry(@"META\info.json") ?? modZip.GetEntry("META/info.json");
+                    await using StreamWriter writer = new StreamWriter(infoJsonEntry.Open());
+                    writer.BaseStream.SetLength(0);
+                    writer.Write(currentModInfo);
+                }
                 catch (Exception exception)
                 {
-                    Log.Error($"Failed to copy mod from: {modOriginalPath} to {modPath}\n{exception}");
-                    await DialogHelper.ShowMessageDialog($"Failed to copy mod from: {modOriginalPath} to {modPath}\n{exception.Message}");
+                    Log.Error(exception, "Failed to copy mod from: {ModOriginalPath} to {ModPath}", modOriginalPath, modPath);
+                    await DialogHelper.ShowMessageDialog($"Failed to copy mod from: {modOriginalPath} to {modPath}\n\n{exception.Message}");
+                    return;
                 }
             }
 
